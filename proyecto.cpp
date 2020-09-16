@@ -28,17 +28,38 @@ void makeText(string opcion){
 Metodo para insertar datos
 */
 
+
+
 /*
 Metodo para encriptar
 */
+
+
 
 /*
 Metodo para desencriptar
 */
 
+
+
+
 /*
 Metodo para abrir archivo
 */
+void openText(string opcion){
+	ifstream documento;
+	string text;
+	
+	string delimitar= opcion+".txt";
+	
+	documento.open(delimitar.c_str(),ios::in);
+	
+	while(!documento.eof()){
+		getline(documento,text);
+		cout<<text<<endl;
+	}
+}
+
 
 int main(){
 	string op;
@@ -62,7 +83,12 @@ int main(){
 	if(menu=="1"){
 		printf("Ingresa el nombre del archivo para guardar tus datos: ");
 		cin>>op;
+		
+		//creacion del archivo
 		makeText(op);
+		
+		//lectura del archivo
+		openText(op);
 	}else{
 		return 0;
 	}	
