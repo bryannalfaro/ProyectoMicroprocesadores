@@ -19,8 +19,26 @@ Metodo para elaborar archivo de texto
 void makeText(string opcion){
 	
 	ofstream documento;
-	documento.open(opcion.c_str(),ios::out);
+	string delimitar= opcion+".txt";
+	
+	documento.open(delimitar.c_str(),ios::out);
 }
+
+/*
+Metodo para insertar datos
+*/
+
+/*
+Metodo para encriptar
+*/
+
+/*
+Metodo para desencriptar
+*/
+
+/*
+Metodo para abrir archivo
+*/
 
 int main(){
 	string op;
