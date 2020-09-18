@@ -10,38 +10,81 @@ Diego Alberto Alvarez
 
 #include <iostream>
 #include <fstream>
+#include <stdio.h>
+#include <unistd.h>
+#include <pigpio.h>
+#include <pthread.h>
+
+#define SONAR_TRIGGER 23
+#define SONAR_ECHO    24
 
 using namespace std;
+
+string op = "";
+ofstream documento;
 
 /*
 Metodo para elaborar archivo de texto
 */
 void makeText(string opcion){
 	
-	ofstream documento;
 	string delimitar= opcion+".txt";
-	
 	documento.open(delimitar.c_str(),ios::out);
+
 }
 
 /*
 Metodo para insertar datos
 */
-void insertText(string opcion){
-	ofstream documento;
-	string ingreso;
-	
+void insertText(string opcion, int ingreso){
+
 	string delimitar= opcion+".txt";
-	documento.open(delimitar.c_str(),ios::out);
 	
-	cout<<"Digite texto: ";
-	cin>>ingreso;
-	documento<<ingreso<<endl;
-	documento<<ingreso<<endl;
 	documento<<ingreso<<endl;
 	
 }
 
+
+/*
+Metodo para lectura de datos
+*/
+
+void sonarTrigger(void);
+
+void sonarEcho(int gpio, int level, uint32_t tick);
+
+void sonarTrigger(void)
+{
+   /* trigger a sonar reading */
+   
+   gpioWrite(SONAR_TRIGGER, PI_ON);
+
+   gpioDelay(10); /* 10us trigger pulse */
+
+   gpioWrite(SONAR_TRIGGER, PI_OFF);
+}
+
+void sonarEcho(int gpio, int level, uint32_t tick)
+{
+   static uint32_t startTick, firstTick=0;
+
+   int diffTick;
+
+   if (!firstTick) firstTick = tick;
+
+   if (level == PI_ON)
+   {
+      startTick = tick;
+   }
+   else if (level == PI_OFF)
+   {
+      diffTick = (tick - startTick)/100;
+      insertText(op, diffTick);
+      printf("Distancia: ");
+      printf("%u", diffTick);
+      printf("cm\n");
+   }
+}
 
 /*
 Metodo para encriptar
@@ -74,11 +117,8 @@ void openText(string opcion){
 }
 
 
-int main(){
-	string op;
+int main(int argc, char *argv[]){
 	string menu;
-	
-
 	
 	printf("--------------------------------------\n");
 	cout<<"|  _                   _              |"<<endl;
@@ -96,17 +136,32 @@ int main(){
 	if(menu=="1"){
 		printf("Ingresa el nombre del archivo para guardar tus datos: ");
 		cin>>op;
-		
 		//creacion del archivo
 		makeText(op);
 		
-		insertText(op);
+		if (gpioInitialise()<0) return 1;
+		
+		gpioSetMode(SONAR_TRIGGER, PI_OUTPUT);
+		gpioWrite(SONAR_TRIGGER, PI_OFF);
+		gpioSetMode(SONAR_ECHO,    PI_INPUT);
+
+		/* update sonar 20 times a second, timer #0 */
+
+		gpioSetTimerFunc(0, 500, sonarTrigger); /* every 50ms */
+
+		/* monitor sonar echos */
+
+		gpioSetAlertFunc(SONAR_ECHO, sonarEcho);
+
+		while (1){
+		sleep(1);
+		}
+
+		gpioTerminate();
+
+		return 0;
 		
 	}else{
 		return 0;
-	}	
-	
-	
-	
-	
+	}		
 }
