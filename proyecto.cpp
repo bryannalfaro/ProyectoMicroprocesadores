@@ -27,7 +27,20 @@ void makeText(string opcion){
 /*
 Metodo para insertar datos
 */
-
+void insertText(string opcion){
+	ofstream documento;
+	string ingreso;
+	
+	string delimitar= opcion+".txt";
+	documento.open(delimitar.c_str(),ios::out);
+	
+	cout<<"Digite texto: ";
+	cin>>ingreso;
+	documento<<ingreso<<endl;
+	documento<<ingreso<<endl;
+	documento<<ingreso<<endl;
+	
+}
 
 
 /*
@@ -87,8 +100,8 @@ int main(){
 		//creacion del archivo
 		makeText(op);
 		
-		//lectura del archivo
-		openText(op);
+		insertText(op);
+		
 	}else{
 		return 0;
 	}	
