@@ -154,10 +154,10 @@ int main() {
 		int line = 0;
 		string dataUnique;
 		while (getline(infile, dataUnique)) {
-			if (line > 0 && line <= DATASIZE) {
-				msgstr[line-1] = dataUnique;
-				msgstr[line-1].pop_back();
-				msgstr[line-1].pop_back();
+			if (line <= DATASIZE) {
+				msgstr[line] = dataUnique;
+				msgstr[line].pop_back();
+				msgstr[line].pop_back();
 			}
 			line++;
 		}

@@ -281,15 +281,17 @@ int main() {
 		pthread_create(&pid2[i], NULL, encrypt, (void*)&rpd[i]);
 	}
 	
+	ofstream outfile;
+	outfile.open("message.aes", ios::out | ios::binary);
 	for (int i = 0; i < DATASIZE; i++) {
-		pthread_join(pid2[DATASIZE - 1 - i], &vrpd);
-		rpd[DATASIZE - 1 - i] = *(returnPreparedData*)vrpd;
-		unsigned char toFile[rpd[DATASIZE - 1 - i].paddedMessageLen * 2];
+		pthread_join(pid2[i], &vrpd);
+		rpd[i] = *(returnPreparedData*)vrpd;
+		unsigned char toFile[rpd[i].paddedMessageLen * 2];
 		cout << "\nEncrypted message in hex:" << endl;
 		int contChar = 0;
-		for (int j = 0; j < rpd[DATASIZE - 1 - i].paddedMessageLen; j++) {
+		for (int j = 0; j < rpd[i].paddedMessageLen; j++) {
 			char par[3];
-			sprintf(par, "%02X", (int)((rpd[DATASIZE - 1 - i].encryptedMessage)[j]));
+			sprintf(par, "%02X", (int)((rpd[i].encryptedMessage)[j]));
 			toFile[contChar] = par[0];
 			toFile[contChar+1] = par[1];
 			contChar += 2;
@@ -298,25 +300,15 @@ int main() {
 		}
 		cout << endl;
 		// Escribiendo dato encriptado en message.aes
-		FILE *datos;
-		datos = fopen("message.aes", "a");
-		// Si cambiamos la a por w se borrara lo que tenemos y solo se tendra lo nuevo, 
-		// Si ponemos a se va agregando
-		fprintf(datos,"%s\n",toFile);
+		if (outfile.is_open())
+		{
+			outfile << toFile;
+			outfile << "\n";
+		}
+		else cout << "Unable to open file";
 	}
+	outfile.close();
 /*
-	// Write the encrypted string out to file "message.aes"
-	ofstream outfile;
-	outfile.open("message.aes", ios::out | ios::binary);
-	if (outfile.is_open())
-	{
-		outfile << encryptedMessage;
-		outfile.close();
-		cout << "Wrote encrypted message to file message.aes" << endl;
-	}
-
-	else cout << "Unable to open file";
-
 	// Free memory
 	delete[] paddedMessage;
 	delete[] encryptedMessage;
