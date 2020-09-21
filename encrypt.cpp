@@ -21,6 +21,10 @@
 
 #define DATASIZE 17
 using namespace std;
+string str;
+pthread_mutex_t mutex;
+pthread_cond_t order;
+int cont = 0;
 
 /* Serves as the initial round during encryption
  * AddRoundKey is simply an XOR of a 128-bit block with the 128-bit key.
@@ -149,13 +153,66 @@ void AESEncrypt(unsigned char * message, unsigned char * expandedKey, unsigned c
 
 struct argData {
 	string data;
+	int i;
 };
 
-void *encrypt(void *arg) {
+struct returnPreparedData {
+	int paddedMessageLen;
+	unsigned char * paddedMessage;
+	unsigned char * encryptedMessage;
+	unsigned char expandedKey[176];
+	int i;
+	returnPreparedData(void*&){};
+	returnPreparedData(){};
+};
+
+void *prepareEncrypt(void *arg) {
 	struct argData *ad;
+	struct returnPreparedData *rpd = (returnPreparedData*)malloc(sizeof(*rpd));
 	ad = (struct argData*)arg;
-	cout << ad->data;
-	pthread_exit(0);
+
+	// Pad message to 16 bytes
+
+	rpd->paddedMessageLen = ad->data.length();
+	rpd->i = ad->i;
+
+	if ((rpd->paddedMessageLen % 16) != 0) {
+		rpd->paddedMessageLen = (rpd->paddedMessageLen / 16 + 1) * 16;
+	}
+
+	rpd->paddedMessage = new unsigned char[rpd->paddedMessageLen];
+	for (int i = 0; i < rpd->paddedMessageLen; i++) {
+		if (i >= (int)(ad->data.length())) {
+			rpd->paddedMessage[i] = 0;
+		}
+		else {
+			rpd->paddedMessage[i] = ad->data[i];
+		}
+	}
+	
+	pthread_exit(rpd);
+}
+
+
+
+void *encrypt(void *arg) {
+	pthread_mutex_lock(&mutex);
+	struct returnPreparedData *rpd;
+	rpd = (struct returnPreparedData*)arg;
+	
+	rpd->encryptedMessage = new unsigned char[rpd->paddedMessageLen];
+
+	while (cont < rpd->i)
+	    pthread_cond_wait(&order, &mutex);
+	
+	for (int i = 0; i < rpd->paddedMessageLen; i += 16) {
+		AESEncrypt(rpd->paddedMessage+i, rpd->expandedKey, rpd->encryptedMessage+i);
+	}
+	
+	cont++;
+	pthread_cond_broadcast(&order);
+	pthread_mutex_unlock(&mutex);
+	pthread_exit(rpd);
 }
 
 int main() {
@@ -175,45 +232,8 @@ int main() {
 		infile.close();
 	}
 	else cout << "Unable to open file";
-
-	// Empiezan los hilos por cada dato
 	
-	pthread_t pid[DATASIZE];
-	struct argData ad[DATASIZE];
-	for (int i = 0; i < DATASIZE; i++) {
-		ad[i].data = data[i];
-		pthread_create(&pid[i], NULL, encrypt, (void*)&ad[i]);
-	}
-
-	// TODO: Falta meter lo de aca en adelante en hilos
-	char message[1024]; // Tamaño del dato a encriptar // TODO: bajar el 1024 a un numero más coherente con los datos
-
-	cout << "Enter the message to encrypt: ";
-	cin.getline(message, sizeof(message));
-	cout << message << endl;
-
-	// Pad message to 16 bytes
-	int originalLen = strlen((const char *)message);
-
-	int paddedMessageLen = originalLen;
-
-	if ((paddedMessageLen % 16) != 0) {
-		paddedMessageLen = (paddedMessageLen / 16 + 1) * 16;
-	}
-
-	unsigned char * paddedMessage = new unsigned char[paddedMessageLen];
-	for (int i = 0; i < paddedMessageLen; i++) {
-		if (i >= originalLen) {
-			paddedMessage[i] = 0;
-		}
-		else {
-			paddedMessage[i] = message[i];
-		}
-	}
-
-	unsigned char * encryptedMessage = new unsigned char[paddedMessageLen];
-
-	string str;
+	// Abriendo archivo de llave
 	infile.open("keyfile", ios::in | ios::binary);
 
 	if (infile.is_open())
@@ -221,9 +241,8 @@ int main() {
 		getline(infile, str); // The first line of file should be the key
 		infile.close();
 	}
-
 	else cout << "Unable to open file";
-
+	
 	istringstream hex_chars_stream(str);
 	unsigned char key[16];
 	int i = 0;
@@ -238,18 +257,54 @@ int main() {
 
 	KeyExpansion(key, expandedKey);
 
-	for (int i = 0; i < paddedMessageLen; i += 16) {
-		AESEncrypt(paddedMessage+i, expandedKey, encryptedMessage+i);
+	// Empiezan los hilos por cada dato
+	
+	// convertir a hexadecimal
+	pthread_t pid1[DATASIZE];
+	struct argData ad[DATASIZE];
+	for (int i = 0; i < DATASIZE; i++) {
+		ad[i].data = data[i];
+		ad[i].i = i;
+		pthread_create(&pid1[i], NULL, prepareEncrypt, (void*)&ad[i]);
 	}
-
-	cout << "Encrypted message in hex:" << endl;
-	for (int i = 0; i < paddedMessageLen; i++) {
-		cout << hex << (int) encryptedMessage[i];
-		cout << " ";
+	
+	pthread_t pid2[DATASIZE];
+	void *vrpd;
+	struct returnPreparedData rpd[DATASIZE];
+	pthread_cond_init(&order, NULL);
+	for (int i = 0; i < DATASIZE; i++) {
+		pthread_join(pid1[i], &vrpd); // Espera que se haya hecho la conversion hex
+		rpd[i] = *(returnPreparedData*)vrpd;
+		for (int j = 0; j < 176; j++) { // TODO: investigar la funcion para copiar array
+			rpd[i].expandedKey[j] = expandedKey[j];
+		}
+		pthread_create(&pid2[i], NULL, encrypt, (void*)&rpd[i]);
 	}
-
-	cout << endl;
-
+	
+	for (int i = 0; i < DATASIZE; i++) {
+		pthread_join(pid2[DATASIZE - 1 - i], &vrpd);
+		rpd[DATASIZE - 1 - i] = *(returnPreparedData*)vrpd;
+		unsigned char toFile[rpd[DATASIZE - 1 - i].paddedMessageLen * 2];
+		cout << "\nEncrypted message in hex:" << endl;
+		int contChar = 0;
+		for (int j = 0; j < rpd[DATASIZE - 1 - i].paddedMessageLen; j++) {
+			char par[3];
+			sprintf(par, "%02X", (int)((rpd[DATASIZE - 1 - i].encryptedMessage)[j]));
+			toFile[contChar] = par[0];
+			toFile[contChar+1] = par[1];
+			contChar += 2;
+			cout << par;
+			cout << " ";
+		}
+		cout << endl;
+		// Escribiendo dato encriptado en message.aes
+		FILE *datos;
+		datos = fopen("message.aes", "a");
+		// Si cambiamos la a por w se borrara lo que tenemos y solo se tendra lo nuevo, 
+		// Si ponemos a se va agregando
+		fprintf(datos,"%s\n",toFile);
+	}
+/*
 	// Write the encrypted string out to file "message.aes"
 	ofstream outfile;
 	outfile.open("message.aes", ios::out | ios::binary);
@@ -265,6 +320,6 @@ int main() {
 	// Free memory
 	delete[] paddedMessage;
 	delete[] encryptedMessage;
-
+*/
 	return 0;
 }
