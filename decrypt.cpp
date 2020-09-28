@@ -8,7 +8,7 @@
 #include <sstream>
 #include "structures.h"
 
-#define DATASIZE 17
+#define DATASIZE 12
 
 using namespace std;
 
@@ -138,7 +138,7 @@ void AESDecrypt(unsigned char * encryptedMessage, unsigned char * expandedKey, u
 	}
 }
 
-int main() {
+int executeD() {
 
 	cout << "=============================" << endl;
 	cout << " 128-bit AES Decryption Tool " << endl;

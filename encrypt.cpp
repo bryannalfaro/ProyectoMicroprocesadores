@@ -19,7 +19,7 @@
 #include <pthread.h>
 #include "structures.h"
 
-#define DATASIZE 17
+#define DATASIZE 239
 using namespace std;
 string str;
 pthread_mutex_t mutex;
@@ -215,7 +215,7 @@ void *encrypt(void *arg) {
 	pthread_exit(rpd);
 }
 
-int main() {
+int executeE() {
 
 	// Abriendo archivo
 	string data[DATASIZE]; // Contiene todos los datos a encriptar

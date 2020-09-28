@@ -14,13 +14,15 @@
 #include <unistd.h>
 #include <pigpio.h>
 #include <pthread.h>
+#include "encrypt.hh"
+#include "decrypt.hh"
 
 #define SONAR_TRIGGER 23
 #define SONAR_ECHO    24
 
 using namespace std;
 
-string op = "";
+string op = "Datos";
 ofstream documento;
 
 /*
@@ -88,33 +90,12 @@ void sonarEcho(int gpio, int level, uint32_t tick)
 
 /*
 Metodo para encriptar
+
 */
-
-
 
 /*
 Metodo para desencriptar
 */
-
-
-
-
-/*
-Metodo para abrir archivo
-*/
-void openText(string opcion){
-	ifstream documento;
-	string text;
-	
-	string delimitar= opcion+".txt";
-	
-	documento.open(delimitar.c_str(),ios::in);
-	
-	while(!documento.eof()){
-		getline(documento,text);
-		cout<<text<<endl;
-	}
-}
 
 
 int main(int argc, char *argv[]){
@@ -134,31 +115,36 @@ int main(int argc, char *argv[]){
 	cin>>menu;
 	
 	if(menu=="1"){
-		printf("Ingresa el nombre del archivo para guardar tus datos: ");
-		cin>>op;
+		bool flag = true;
+		int cont = 0;
+		//executeD();
+		//printf("Ingresa el nombre del archivo para guardar tus datos: ");
+		//cin>>op;
 		//creacion del archivo
 		makeText(op);
-		
+
 		if (gpioInitialise()<0) return 1;
 		
 		gpioSetMode(SONAR_TRIGGER, PI_OUTPUT);
 		gpioWrite(SONAR_TRIGGER, PI_OFF);
 		gpioSetMode(SONAR_ECHO,    PI_INPUT);
-
 		/* update sonar 20 times a second, timer #0 */
 
-		gpioSetTimerFunc(0, 500, sonarTrigger); /* every 50ms */
+		gpioSetTimerFunc(0, 250, sonarTrigger); /* every 250ms */
 
 		/* monitor sonar echos */
-
 		gpioSetAlertFunc(SONAR_ECHO, sonarEcho);
-
-		while (1){
+		
+		while (flag){
 		sleep(1);
+		cont += 1;
+			if(cont == 60){
+				flag = false;
+			}
 		}
 
 		gpioTerminate();
-
+		executeE();
 		return 0;
 		
 	}else{
