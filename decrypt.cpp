@@ -6,9 +6,8 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <pthread.h>
 #include "structures.h"
-
-#define DATASIZE 12
 
 using namespace std;
 
@@ -138,6 +137,61 @@ void AESDecrypt(unsigned char * encryptedMessage, unsigned char * expandedKey, u
 	}
 }
 
+struct argData {
+	string data;
+	int i;
+};
+
+struct returnPreparedData {
+	unsigned char * msg;
+	unsigned char * encryptedMessage;
+	unsigned char * decryptedMessage;
+	unsigned char expandedKey[176];
+	int i;
+	returnPreparedData(void*&){};
+	returnPreparedData(){};
+};
+
+void *prepareDecrypt(void *arg) {
+	struct argData *ad;
+	struct returnPreparedData *rpd = (returnPreparedData*)malloc(sizeof(*rpd));
+	ad = (struct argData*)arg;
+	
+	// Convert to hex
+	rpd->msg = new unsigned char[ad->data.size()+1];
+
+	strcpy((char*)rpd->msg, ad->data.c_str());
+
+	rpd->encryptedMessage = new unsigned char[16];
+	int contHex = 0;
+	for (int i = 0; i < 16; i++) {
+		char hex[2];
+		hex[0] = rpd->msg[contHex];
+		hex[1] = rpd->msg[contHex + 1];
+		contHex += 2;
+		int d;
+		sscanf(hex,"%X", &d);
+		rpd->encryptedMessage[i] = (unsigned char)d;
+	}
+	
+	pthread_exit(rpd);
+}
+
+void *decrypt(void *arg) {
+	struct returnPreparedData *rpd;
+	rpd = (struct returnPreparedData*)arg;
+	
+	int messageLen = 16;
+
+	rpd->decryptedMessage = new unsigned char[messageLen];
+
+	for (int i = 0; i < messageLen; i += 16) {
+		AESDecrypt(rpd->encryptedMessage + i, rpd->expandedKey, rpd->decryptedMessage + i);
+	}
+	
+	pthread_exit(rpd);
+}
+
 int executeD() {
 
 	cout << "=============================" << endl;
@@ -145,8 +199,22 @@ int executeD() {
 	cout << "=============================" << endl;
 
 	// Read in the message from message.aes
-	string msgstr[DATASIZE];
+	int DATASIZE = 0;
 	ifstream infile;
+	infile.open("message.aes", ios::in | ios::binary);
+
+	if (infile.is_open())
+	{
+		string dataUnique;
+		while (getline(infile, dataUnique)) {
+			DATASIZE++;
+		}
+		infile.close();
+	}
+	
+	printf("la cantidad de lineas es %d", DATASIZE);
+	
+	string msgstr[DATASIZE];
 	infile.open("message.aes", ios::in | ios::binary);
 
 	if (infile.is_open())
@@ -165,26 +233,7 @@ int executeD() {
 	}
 
 	else cout << "Unable to open file";
-	//TODO: aqui por el momento solo se esta probando con el msgstr[0]
-	char * msg = new char[msgstr[0].size()+1];
-
-	strcpy(msg, msgstr[0].c_str());
-
-	unsigned char * encryptedMessage = new unsigned char[16];
-	int contHex = 0;
-	for (int i = 0; i < 16; i++) {
-		char hex[2];
-		hex[0] = msg[contHex];
-		hex[1] = msg[contHex + 1];
-		contHex += 2;
-		int d;
-		sscanf(hex,"%X", &d);
-		encryptedMessage[i] = (unsigned char)d;
-	}
-
-	// Free memory
-	delete[] msg;
-
+	
 	// Read in the key
 	string keystr;
 	ifstream keyfile;
@@ -213,25 +262,57 @@ int executeD() {
 
 	KeyExpansion(key, expandedKey);
 	
-	int messageLen = 16;
-
-	unsigned char * decryptedMessage = new unsigned char[messageLen];
-
-	for (int i = 0; i < messageLen; i += 16) {
-		AESDecrypt(encryptedMessage + i, expandedKey, decryptedMessage + i);
+	pthread_t pid1[DATASIZE];
+	struct argData ad[DATASIZE];
+	for (int i = 0; i < DATASIZE; i++) {
+		ad[i].data = msgstr[i];
+		ad[i].i = i;
+		pthread_create(&pid1[i], NULL, prepareDecrypt, (void*)&ad[i]);
 	}
 
-	cout << "Decrypted message in hex:" << endl;
-	for (int i = 0; i < messageLen; i++) {
-		cout << hex << (int)decryptedMessage[i];
-		cout << " ";
+	// Free memory
+	//delete[] msg;
+	
+	pthread_t pid2[DATASIZE];
+	void *vrpd;
+	struct returnPreparedData rpd[DATASIZE];
+	for (int i = 0; i < DATASIZE; i++) {
+		pthread_join(pid1[i], &vrpd); // Espera que se haya hecho la conversion hex
+		rpd[i] = *(returnPreparedData*)vrpd;
+		for (int j = 0; j < 176; j++) { // TODO: investigar la funcion para copiar array
+			rpd[i].expandedKey[j] = expandedKey[j];
+		}
+		pthread_create(&pid2[i], NULL, decrypt, (void*)&rpd[i]);
 	}
-	cout << endl;
-	cout << "Decrypted message: ";
-	for (int i = 0; i < messageLen; i++) {
-		cout << decryptedMessage[i];
+
+
+	ofstream outfile;
+	outfile.open("DatosDesencriptados.txt", ios::out | ios::binary);
+	for (int i = 0; i < DATASIZE; i++) {
+		pthread_join(pid2[i], &vrpd);
+		rpd[i] = *(returnPreparedData*)vrpd;
+		cout << "Decrypted message in hex:" << endl;
+		for (int j = 0; j < 16; j++) {
+			cout << hex << (int)rpd[i].decryptedMessage[j];
+			cout << " ";
+		}
+		cout << endl;
+		cout << "Decrypted message: ";
+		unsigned char toFile[256];
+		for (int j = 0; j < 16; j++) {
+			cout << rpd[i].decryptedMessage[j];
+			toFile[j] = rpd[i].decryptedMessage[j];
+		}
+		cout << endl;
+		if (outfile.is_open())
+		{
+			outfile << toFile;
+			outfile << "\n";
+		}
+		else cout << "Unable to open file";
 	}
-	cout << endl;
+
+	
 
 	return 0;
 }
