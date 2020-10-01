@@ -145,6 +145,7 @@ int main(int argc, char *argv[]){
 
 		gpioTerminate();
 		executeE();
+		executeD();
 		return 0;
 		
 	}else{
