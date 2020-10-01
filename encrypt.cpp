@@ -1,15 +1,15 @@
 /* 
  * Universidad del valle de Guatemala
- * Proyecto 2 - Programación de Microprocesadores
+ * Proyecto 2 - Programacion de Microprocesadores
  * Integrantes:
  * Bryann Alfaro
  * Diego de Jesus Arredondo
  * Julio Roberto Herrera
  * Diego Alberto Alvarez
  * -----------------------------------------------
- * Modificación de:
+ * Modificacion del codigo de:
  * Performs encryption using AES 128-bit
- * @author Cecelia Wisniewska
+ * author: Cecelia Wisniewska
  */
 
 #include <iostream>
@@ -21,6 +21,8 @@
 
 #define DATASIZE 239
 using namespace std;
+
+//Creacion de variables
 string str;
 pthread_mutex_t mutex;
 pthread_cond_t order;
@@ -48,25 +50,25 @@ void SubBytes(unsigned char * state) {
 void ShiftRows(unsigned char * state) {
 	unsigned char tmp[16];
 
-	/* Column 1 */
+	/* Columna 1 */
 	tmp[0] = state[0];
 	tmp[1] = state[5];
 	tmp[2] = state[10];
 	tmp[3] = state[15];
 	
-	/* Column 2 */
+	/* Columna 2*/
 	tmp[4] = state[4];
 	tmp[5] = state[9];
 	tmp[6] = state[14];
 	tmp[7] = state[3];
 
-	/* Column 3 */
+	/* Columna 3 */
 	tmp[8] = state[8];
 	tmp[9] = state[13];
 	tmp[10] = state[2];
 	tmp[11] = state[7];
 	
-	/* Column 4 */
+	/* Columna 4 */
 	tmp[12] = state[12];
 	tmp[13] = state[1];
 	tmp[14] = state[6];
@@ -190,20 +192,20 @@ void *prepareEncrypt(void *arg) {
 		}
 	}
 	
-	pthread_exit(rpd);
+	pthread_exit(rpd); //Salida del hilo
 }
 
 
 
 void *encrypt(void *arg) {
-	pthread_mutex_lock(&mutex);
+	pthread_mutex_lock(&mutex); // Se bloquea la variable
 	struct returnPreparedData *rpd;
 	rpd = (struct returnPreparedData*)arg;
 	
 	rpd->encryptedMessage = new unsigned char[rpd->paddedMessageLen];
 
 	while (cont < rpd->i)
-	    pthread_cond_wait(&order, &mutex);
+	    pthread_cond_wait(&order, &mutex); //En esta parte se aplica sincronizacion
 	
 	for (int i = 0; i < rpd->paddedMessageLen; i += 16) {
 		AESEncrypt(rpd->paddedMessage+i, rpd->expandedKey, rpd->encryptedMessage+i);
@@ -211,8 +213,8 @@ void *encrypt(void *arg) {
 	
 	cont++;
 	pthread_cond_broadcast(&order);
-	pthread_mutex_unlock(&mutex);
-	pthread_exit(rpd);
+	pthread_mutex_unlock(&mutex);//Se desbloquea la variable
+	pthread_exit(rpd);//Se sale del hilo
 }
 
 int executeE() {

@@ -1,13 +1,23 @@
-/* decrypt.cpp
- * Performs decryption using AES 128-bit
- * @author Cecelia Wisniewska
+/* 
+ * Universidad del valle de Guatemala
+ * Proyecto 2 - Programacion de Microprocesadores
+ * Integrantes:
+ * Bryann Alfaro
+ * Diego de Jesus Arredondo
+ * Julio Roberto Herrera
+ * Diego Alberto Alvarez
+ * -----------------------------------------------
+ * Modificacion del codigo de:
+ * Performs encryption using AES 128-bit
+ * author: Cecelia Wisniewska
  */
+ 
 #include <iostream>
 #include <cstring>
 #include <fstream>
 #include <sstream>
 #include <pthread.h>
-#include "structures.h"
+#include "structuresD.h"
 
 using namespace std;
 
