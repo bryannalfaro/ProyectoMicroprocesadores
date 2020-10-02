@@ -38,7 +38,7 @@ void makeText(string opcion){
 /*
 Metodo para insertar datos
 */
-void insertText(string opcion, int ingreso){
+void insertText(string opcion, double ingreso){
 
 	string delimitar= opcion+".txt";
 	
@@ -70,7 +70,7 @@ void sonarEcho(int gpio, int level, uint32_t tick)
 {
    static uint32_t startTick, firstTick=0;
 
-   int diffTick;
+   double diffTick;
 
    if (!firstTick) firstTick = tick;
 
@@ -80,11 +80,11 @@ void sonarEcho(int gpio, int level, uint32_t tick)
    }
    else if (level == PI_OFF)
    {
-      diffTick = (tick - startTick)/100;
+      diffTick = (double)(tick - startTick)/50;
       insertText(op, diffTick);
       printf("Distancia: ");
-      printf("%u", diffTick);
-      printf("cm\n");
+      printf("%.2f", diffTick);
+      printf(" cm\n");
    }
 }
 

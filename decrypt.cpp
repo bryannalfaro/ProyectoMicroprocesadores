@@ -204,10 +204,6 @@ void *decrypt(void *arg) {
 
 int executeD() {
 
-	cout << "=============================" << endl;
-	cout << " 128-bit AES Decryption Tool " << endl;
-	cout << "=============================" << endl;
-
 	// Read in the message from message.aes
 	int DATASIZE = 0;
 	ifstream infile;
@@ -221,8 +217,6 @@ int executeD() {
 		}
 		infile.close();
 	}
-	
-	printf("la cantidad de lineas es %d", DATASIZE);
 	
 	string msgstr[DATASIZE];
 	infile.open("message.aes", ios::in | ios::binary);
@@ -301,12 +295,6 @@ int executeD() {
 	for (int i = 0; i < DATASIZE; i++) {
 		pthread_join(pid2[i], &vrpd);
 		rpd[i] = *(returnPreparedData*)vrpd;
-		cout << "Decrypted message in hex:" << endl;
-		for (int j = 0; j < 16; j++) {
-			cout << hex << (int)rpd[i].decryptedMessage[j];
-			cout << " ";
-		}
-		cout << endl;
 		cout << "Decrypted message: ";
 		unsigned char toFile[256];
 		for (int j = 0; j < 16; j++) {

@@ -300,7 +300,7 @@ int executeE() {
 			cout << par;
 			cout << " ";
 		}
-		cout << endl;
+		cout << "\n";
 		// Escribiendo dato encriptado en message.aes
 		if (outfile.is_open())
 		{
