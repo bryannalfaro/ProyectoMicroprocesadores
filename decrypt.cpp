@@ -7,6 +7,10 @@
  * Julio Roberto Herrera
  * Diego Alberto Alvarez
  * -----------------------------------------------
+ * Desencriptación de datos usando hilos
+ * La cantidad de datos a desencriptar está definida
+ * por la cantidad de líneas en Message.aes
+ * -----------------------------------------------
  * Modificacion del codigo de:
  * Performs encryption using AES 128-bit
  * author: Cecelia Wisniewska
@@ -21,9 +25,9 @@
 
 using namespace std;
 
-/* Used in Round() and serves as the final round during decryption
- * SubRoundKey is simply an XOR of a 128-bit block with the 128-bit key.
- * So basically does the same as AddRoundKey in the encryption
+/* En la desencripción sirve para cada Round() y en la ronda final
+ * SubRoundKey es una operación XOR al bloque de 128-bits del mensaje
+ * con el bloque de 128-bits de la llave.
  */
 void SubRoundKey(unsigned char * state, unsigned char * roundKey) {
 	for (int i = 0; i < 16; i++) {
@@ -31,8 +35,8 @@ void SubRoundKey(unsigned char * state, unsigned char * roundKey) {
 	}
 }
 
-/* InverseMixColumns uses mul9D, mul11D, mul13D, mul14D look-up tables
- * Unmixes the columns by reversing the effect of MixColumns in encryption
+/* Usa mul9D, mul11D, mul13D, mul14D de structures.h
+ * Las operaciones invierten las realizadas por MixColumns en la encriptación
  */
 void InverseMixColumns(unsigned char * state) {
 	unsigned char tmp[16];
@@ -62,7 +66,7 @@ void InverseMixColumns(unsigned char * state) {
 	}
 }
 
-// Shifts rows right (rather than left) for decryption
+// Shifts rows right (para inventir Shift left)
 void ShiftRowsD(unsigned char * state) {
 	unsigned char tmp[16];
 
@@ -95,18 +99,18 @@ void ShiftRowsD(unsigned char * state) {
 	}
 }
 
-/* Perform substitution to each of the 16 bytes
- * Uses inverse S-box as lookup table
+/* Realiza la sustitución para el bloque de 16 bytes con la tabla
+ * S-box de AES definida en structures.h
  */
 void SubBytesD(unsigned char * state) {
-	for (int i = 0; i < 16; i++) { // Perform substitution to each of the 16 bytes
+	for (int i = 0; i < 16; i++) { // Sustitución para cada uno de los 16 bloques
 		state[i] = inv_sD[state[i]];
 	}
 }
 
-/* Each round operates on 128 bits at a time
- * The number of rounds is defined in AESDecrypt()
- * Not surprisingly, the steps are the encryption steps but reversed
+/* La ronda que se operará a la matriz de 128-bits
+ * El número de rondas está definido por los la encriptación de 128
+ * Los pasos son los invertidos que los de la encriptación
  */
 void RoundD(unsigned char * state, unsigned char * key) {
 	SubRoundKey(state, key);
@@ -115,19 +119,19 @@ void RoundD(unsigned char * state, unsigned char * key) {
 	SubBytesD(state);
 }
 
-// Same as Round() but no InverseMixColumns
+// La ronda inicial es igual a Round() pero sin InverseMixColumns
 void InitialRound(unsigned char * state, unsigned char * key) {
 	SubRoundKey(state, key);
 	ShiftRowsD(state);
 	SubBytesD(state);
 }
 
-/* The AES decryption function
- * Organizes all the decryption steps into one function
+/* La función que define el orden del algoritmo AES
+ * Define los pasos para la desencripción
  */
 void AESDecrypt(unsigned char * encryptedMessage, unsigned char * expandedKey, unsigned char * decryptedMessage)
 {
-	unsigned char state[16]; // Stores the first 16 bytes of encrypted message
+	unsigned char state[16]; // Guarda los 16 bits del mensaje encriptado
 
 	for (int i = 0; i < 16; i++) {
 		state[i] = encryptedMessage[i];
@@ -139,35 +143,39 @@ void AESDecrypt(unsigned char * encryptedMessage, unsigned char * expandedKey, u
 		RoundD(state, expandedKey + (16 * (i + 1)));
 	}
 
-	SubRoundKey(state, expandedKey); // Final round
+	SubRoundKey(state, expandedKey); // Ronda final
 
-	// Copy decrypted state to buffer
+	// Copia el mensaje desencriptado en el buffer
 	for (int i = 0; i < 16; i++) {
 		decryptedMessage[i] = state[i];
 	}
 }
 
+// Estructura para pasar datos a prepareDecrypt
 struct argData {
 	string data;
 	int i;
 };
 
+// Estructura para pasar datos a Decrypt
 struct returnPreparedData {
 	unsigned char * msg;
 	unsigned char * encryptedMessage;
 	unsigned char * decryptedMessage;
 	unsigned char expandedKey[176];
 	int i;
+	// Constructores
 	returnPreparedData(void*&){};
 	returnPreparedData(){};
 };
 
+// Prepara el mensaje para 16 bits
 void *prepareDecrypt(void *arg) {
 	struct argData *ad;
 	struct returnPreparedData *rpd = (returnPreparedData*)malloc(sizeof(*rpd));
 	ad = (struct argData*)arg;
 	
-	// Convert to hex
+	// Convierte a hexadecimal
 	rpd->msg = new unsigned char[ad->data.size()+1];
 
 	strcpy((char*)rpd->msg, ad->data.c_str());
@@ -187,6 +195,7 @@ void *prepareDecrypt(void *arg) {
 	pthread_exit(rpd);
 }
 
+// Llama a la función AESDecrypt
 void *decrypt(void *arg) {
 	struct returnPreparedData *rpd;
 	rpd = (struct returnPreparedData*)arg;
@@ -204,7 +213,8 @@ void *decrypt(void *arg) {
 
 int executeD() {
 
-	// Read in the message from message.aes
+	// Lee los datos de message.aes
+	// Define la cantidad de lineas = datos a desencriptar
 	int DATASIZE = 0;
 	ifstream infile;
 	infile.open("message.aes", ios::in | ios::binary);
@@ -218,6 +228,7 @@ int executeD() {
 		infile.close();
 	}
 	
+	// Obtiene los datos encriptados	
 	string msgstr[DATASIZE];
 	infile.open("message.aes", ios::in | ios::binary);
 
@@ -238,14 +249,14 @@ int executeD() {
 
 	else cout << "Unable to open file";
 	
-	// Read in the key
+	// Lee la llave
 	string keystr;
 	ifstream keyfile;
 	keyfile.open("keyfile", ios::in | ios::binary);
 
 	if (keyfile.is_open())
 	{
-		getline(keyfile, keystr); // The first line of file should be the key
+		getline(keyfile, keystr); // La primera linea en este archivo debe ser la llave
 		cout << "Read in the 128-bit key from keyfile" << endl;
 		keyfile.close();
 	}
@@ -266,6 +277,7 @@ int executeD() {
 
 	KeyExpansionD(key, expandedKey);
 	
+	// Hilos para convertir a hex
 	pthread_t pid1[DATASIZE];
 	struct argData ad[DATASIZE];
 	for (int i = 0; i < DATASIZE; i++) {
@@ -273,23 +285,21 @@ int executeD() {
 		ad[i].i = i;
 		pthread_create(&pid1[i], NULL, prepareDecrypt, (void*)&ad[i]);
 	}
-
-	// Free memory
-	//delete[] msg;
 	
+	// Aplica la desencriptción
 	pthread_t pid2[DATASIZE];
 	void *vrpd;
 	struct returnPreparedData rpd[DATASIZE];
 	for (int i = 0; i < DATASIZE; i++) {
 		pthread_join(pid1[i], &vrpd); // Espera que se haya hecho la conversion hex
 		rpd[i] = *(returnPreparedData*)vrpd;
-		for (int j = 0; j < 176; j++) { // TODO: investigar la funcion para copiar array
+		for (int j = 0; j < 176; j++) {
 			rpd[i].expandedKey[j] = expandedKey[j];
 		}
 		pthread_create(&pid2[i], NULL, decrypt, (void*)&rpd[i]);
 	}
 
-
+	// Imprime los mensajes desencriptados y escribe en archivo
 	ofstream outfile;
 	outfile.open("DatosDesencriptados.txt", ios::out | ios::binary);
 	for (int i = 0; i < DATASIZE; i++) {
@@ -297,11 +307,13 @@ int executeD() {
 		rpd[i] = *(returnPreparedData*)vrpd;
 		cout << "Decrypted message: ";
 		unsigned char toFile[256];
+		// Imprime en pantalla
 		for (int j = 0; j < 16; j++) {
 			cout << rpd[i].decryptedMessage[j];
 			toFile[j] = rpd[i].decryptedMessage[j];
 		}
 		cout << endl;
+		// Escribe en archivo
 		if (outfile.is_open())
 		{
 			outfile << toFile;

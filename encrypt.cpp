@@ -7,6 +7,11 @@
  * Julio Roberto Herrera
  * Diego Alberto Alvarez
  * -----------------------------------------------
+ * Encriptación de datos usando hilos
+ * Se encriptan la cantidad de datos definida por
+ * DATASIZE, debe ser la cantidad de lineas
+ * que hay en Datos.txt
+ * -----------------------------------------------
  * Modificacion del codigo de:
  * Performs encryption using AES 128-bit
  * author: Cecelia Wisniewska
@@ -28,8 +33,9 @@ pthread_mutex_t mutex;
 pthread_cond_t order;
 int cont = 0;
 
-/* Serves as the initial round during encryption
- * AddRoundKey is simply an XOR of a 128-bit block with the 128-bit key.
+/* Ronda inicial en la encripción
+ * AddRoundKey es una operación XOR al bloque de 128-bit con
+ * el bloque de 128-bit de la llave
  */
 void AddRoundKey(unsigned char * state, unsigned char * roundKey) {
 	for (int i = 0; i < 16; i++) {
@@ -37,8 +43,8 @@ void AddRoundKey(unsigned char * state, unsigned char * roundKey) {
 	}
 }
 
-/* Perform substitution to each of the 16 bytes
- * Uses S-box as lookup table 
+/* Sustitución de los 16 bits por s en structures.h
+ * s en structures.h es la S-box Table de AES
  */
 void SubBytes(unsigned char * state) {
 	for (int i = 0; i < 16; i++) {
@@ -46,7 +52,7 @@ void SubBytes(unsigned char * state) {
 	}
 }
 
-// Shift left, adds diffusion
+// Shift left
 void ShiftRows(unsigned char * state) {
 	unsigned char tmp[16];
 
@@ -79,8 +85,7 @@ void ShiftRows(unsigned char * state) {
 	}
 }
 
- /* MixColumns uses mul2, mul3 look-up tables
-  * Source of diffusion
+ /* MixColumns usa mul2, mul3 de structures.h
   */
 void MixColumns(unsigned char * state) {
 	unsigned char tmp[16];
@@ -110,8 +115,8 @@ void MixColumns(unsigned char * state) {
 	}
 }
 
-/* Each round operates on 128 bits at a time
- * The number of rounds is defined in AESEncrypt()
+/* Rondas que operan sobre la matriz de 128 bits
+ * La cantidad de rondas está definida en AESEncrypt() 
  */
 void Round(unsigned char * state, unsigned char * key) {
 	SubBytes(state);
@@ -120,60 +125,64 @@ void Round(unsigned char * state, unsigned char * key) {
 	AddRoundKey(state, key);
 }
 
- // Same as Round() except it doesn't mix columns
+// La FinalRound() es lo mismo que Round() pero sin MixColumns
 void FinalRound(unsigned char * state, unsigned char * key) {
 	SubBytes(state);
 	ShiftRows(state);
 	AddRoundKey(state, key);
 }
 
-/* The AES encryption function
- * Organizes the confusion and diffusion steps into one function
+/* Define el orden para cumplir con el algoritmo AES
+ * Organiza los pasos de Confusión y Difusión del algoritmo
  */
 void AESEncrypt(unsigned char * message, unsigned char * expandedKey, unsigned char * encryptedMessage) {
-	unsigned char state[16]; // Stores the first 16 bytes of original message
+	unsigned char state[16]; // Guarda los primeros 16 bits del mensaje original
 
 	for (int i = 0; i < 16; i++) {
-		state[i] = message[i];
+		state[i] = message[i]; // Copia el mensaje
 	}
 
-	int numberOfRounds = 9;
+	int numberOfRounds = 9; // En aes 128 se aplican 9 vueltas
 
-	AddRoundKey(state, expandedKey); // Initial round
+	AddRoundKey(state, expandedKey); // Ronda para conjugar con la llave
 
 	for (int i = 0; i < numberOfRounds; i++) {
-		Round(state, expandedKey + (16 * (i+1)));
+		Round(state, expandedKey + (16 * (i+1))); // Las 9 rondas
 	}
 
-	FinalRound(state, expandedKey + 160);
+	FinalRound(state, expandedKey + 160); // Ronda final (sin MixColumns)
 
-	// Copy encrypted state to buffer
+	// Copia el mensaje encriptado en el buffer
 	for (int i = 0; i < 16; i++) {
 		encryptedMessage[i] = state[i];
 	}
 }
 
+// Estructura para pasar datos a *prepareEncrypt
 struct argData {
 	string data;
 	int i;
 };
 
+// Estructura para pasar datos a Encrypt
 struct returnPreparedData {
 	int paddedMessageLen;
 	unsigned char * paddedMessage;
 	unsigned char * encryptedMessage;
 	unsigned char expandedKey[176];
 	int i;
+	// Constructores
 	returnPreparedData(void*&){};
 	returnPreparedData(){};
 };
 
+// Convierte a hexadecimal el mensaje original
 void *prepareEncrypt(void *arg) {
 	struct argData *ad;
 	struct returnPreparedData *rpd = (returnPreparedData*)malloc(sizeof(*rpd));
 	ad = (struct argData*)arg;
 
-	// Pad message to 16 bytes
+	// Acomoda el mensaje a 16 bits según su longitud
 
 	rpd->paddedMessageLen = ad->data.length();
 	rpd->i = ad->i;
@@ -185,6 +194,7 @@ void *prepareEncrypt(void *arg) {
 	rpd->paddedMessage = new unsigned char[rpd->paddedMessageLen];
 	for (int i = 0; i < rpd->paddedMessageLen; i++) {
 		if (i >= (int)(ad->data.length())) {
+			// Completa para los que no cumplen para su división de 16
 			rpd->paddedMessage[i] = 0;
 		}
 		else {
@@ -195,8 +205,8 @@ void *prepareEncrypt(void *arg) {
 	pthread_exit(rpd); //Salida del hilo
 }
 
-
-
+// Llama a la función AESEncrypt y define el orden de la encripción de los
+// datos mediante un mutex y variable de condición
 void *encrypt(void *arg) {
 	pthread_mutex_lock(&mutex); // Se bloquea la variable
 	struct returnPreparedData *rpd;
@@ -204,7 +214,7 @@ void *encrypt(void *arg) {
 	
 	rpd->encryptedMessage = new unsigned char[rpd->paddedMessageLen];
 
-	while (cont < rpd->i)
+	while (cont < rpd->i) // Se salen los que van cumpliendo con el orden
 	    pthread_cond_wait(&order, &mutex); //En esta parte se aplica sincronizacion
 	
 	for (int i = 0; i < rpd->paddedMessageLen; i += 16) {
@@ -240,7 +250,7 @@ int executeE() {
 
 	if (infile.is_open())
 	{
-		getline(infile, str); // The first line of file should be the key
+		getline(infile, str); // La primera linea de este archivo es la llave
 		infile.close();
 	}
 	else cout << "Unable to open file";
@@ -270,6 +280,7 @@ int executeE() {
 		pthread_create(&pid1[i], NULL, prepareEncrypt, (void*)&ad[i]);
 	}
 	
+	// Aplicar encripción
 	pthread_t pid2[DATASIZE];
 	void *vrpd;
 	struct returnPreparedData rpd[DATASIZE];
@@ -277,12 +288,13 @@ int executeE() {
 	for (int i = 0; i < DATASIZE; i++) {
 		pthread_join(pid1[i], &vrpd); // Espera que se haya hecho la conversion hex
 		rpd[i] = *(returnPreparedData*)vrpd;
-		for (int j = 0; j < 176; j++) { // TODO: investigar la funcion para copiar array
-			rpd[i].expandedKey[j] = expandedKey[j];
+		for (int j = 0; j < 176; j++) {
+			rpd[i].expandedKey[j] = expandedKey[j]; // Copia el bloque de llave
 		}
 		pthread_create(&pid2[i], NULL, encrypt, (void*)&rpd[i]);
 	}
 	
+	// Imprime el mensaje en pantalla y escribe en archivo
 	ofstream outfile;
 	outfile.open("message.aes", ios::out | ios::binary);
 	for (int i = 0; i < DATASIZE; i++) {
@@ -291,6 +303,7 @@ int executeE() {
 		unsigned char toFile[rpd[i].paddedMessageLen * 2];
 		cout << "\nEncrypted message in hex:" << endl;
 		int contChar = 0;
+		// Imprime en pantalla
 		for (int j = 0; j < rpd[i].paddedMessageLen; j++) {
 			char par[3];
 			sprintf(par, "%02X", (int)((rpd[i].encryptedMessage)[j]));
@@ -310,10 +323,5 @@ int executeE() {
 		else cout << "Unable to open file";
 	}
 	outfile.close();
-/*
-	// Free memory
-	delete[] paddedMessage;
-	delete[] encryptedMessage;
-*/
 	return 0;
 }
