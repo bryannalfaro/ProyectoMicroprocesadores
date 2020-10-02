@@ -88,15 +88,6 @@ void sonarEcho(int gpio, int level, uint32_t tick)
    }
 }
 
-/*
-Metodo para encriptar
-
-*/
-
-/*
-Metodo para desencriptar
-*/
-
 
 int main(int argc, char *argv[]){
 	string menu;
@@ -130,7 +121,7 @@ int main(int argc, char *argv[]){
 		gpioSetMode(SONAR_ECHO,    PI_INPUT);
 		/* update sonar 20 times a second, timer #0 */
 
-		gpioSetTimerFunc(0, 250, sonarTrigger); /* every 250ms */
+		gpioSetTimerFunc(0, 250, sonarTrigger); /* cada 250ms */
 
 		/* monitor sonar echos */
 		gpioSetAlertFunc(SONAR_ECHO, sonarEcho);
